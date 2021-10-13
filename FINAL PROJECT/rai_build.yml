@@ -17,5 +17,6 @@ commands:
       - /bin/bash -c "cmake -DCMAKE_CXX_FLAGS=-pg /ece408/project/ && make -j8"
       # You may modify the commands below. Uncomment/Comment lines based on the milestone
       - /bin/bash -c "time ./m1 100"
+      - /bin/bash -c "gprof -Q m1 gmon.out"
       #- /bin/bash -c "./m2"
       #- /bin/bash -c "./m3"
