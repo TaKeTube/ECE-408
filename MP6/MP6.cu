@@ -3,28 +3,27 @@
 #include <wb.h>
 
 #define HISTOGRAM_LENGTH    256
-#define RGB_CHANNELS        3
-#define TILE_SIZE           32
+#define TILE_WIDTH          32
 
 //@@ insert code here
 __global__ 
-void FloatToUchar(unsigned char* ucharImage, float* floatImage, int height, int weight){
+void FloatToUchar(unsigned char* ucharImage, float* floatImage, int height, int width, int imageChannels){
     int Col = threadIdx.x + blockIdx.x * blockDim.x;
     int Row = threadIdx.y + blockIdx.y * blockDim.y;
     int Channel = threadIdx.z;
     if(Col < width && Row < height) {
-        int offset = (Row * width + Col) * RGB_CHANNELS + Channel;
+        int offset = (Row * width + Col) * imageChannels + Channel;
         ucharImage[offset] = (unsigned char) (255 * floatImage[offset]);
     }
 }
 
 __global__ 
-void RGBToGray(unsigned char* grayImage, unsigned char* rgbImage, int height, int weight){
+void RGBToGray(unsigned char* grayImage, unsigned char* rgbImage, int height, int width, int imageChannels){
     int Col = threadIdx.x + blockIdx.x * blockDim.x;
     int Row = threadIdx.y + blockIdx.y * blockDim.y;
     if(Col < width && Row < height) {
         int grayOffset = Row * width + Col;
-        int rgbOffset = grayOffset*RGB_CHANNELS;
+        int rgbOffset = grayOffset*imageChannels;
         unsigned char r = rgbImage[rgbOffset];
         unsigned char g = rgbImage[rgbOffset + 1];
         unsigned char b = rgbImage[rgbOffset + 2];
@@ -33,7 +32,7 @@ void RGBToGray(unsigned char* grayImage, unsigned char* rgbImage, int height, in
 }
 
 __global__ 
-void ImageHisto(unsigned char* image, int height, int weight, unsigned char* histo){
+void ImageHisto(unsigned char* image, int height, int width, unsigned char* histo){
     __shared__ unsigned int histo_private[HISTOGRAM_LENGTH];
 
     int linearIdx = threadIdx.x + threadIdx.y * blockDim.x;
@@ -56,8 +55,7 @@ void ImageHisto(unsigned char* image, int height, int weight, unsigned char* his
 }
 
 __global__ 
-void HistCDF(float *cdf, unsigned char* histo, int imgSize)
-{
+void HistCDF(float *cdf, unsigned char* histo, int imgSize){
     __shared__ float T[HISTOGRAM_LENGTH];
 
     unsigned int t = threadIdx.x;
@@ -100,7 +98,7 @@ void HistCDF(float *cdf, unsigned char* histo, int imgSize)
 }
 
 __global__
-void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int weight){
+void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int width, int imageChannels){
     __shared__ float cdfmin;
 
     if(threadIdx.x == 0 && threadIdx.y == 0)
@@ -111,18 +109,18 @@ void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int we
     int Channel = threadIdx.z;
 
     if(Col < width && Row < height) {
-        int offset = (Row * width + Col) * RGB_CHANNELS + Channel;
+        int offset = (Row * width + Col) * imageChannels + Channel;
         ucharImage[offset] = min(max(255*(cdf[ucharImage[offset]] - cdfmin)/(1.0 - cdfmin), 0.0f), 255.0f);
     }
 }
 
 __global__ 
-void UcharToFloat(unsigned char* ucharImage, float* outputImage, int height, int weight){
+void UcharToFloat(unsigned char* ucharImage, float* outputImage, int height, int width, int imageChannels){
     int Col = threadIdx.x + blockIdx.x * blockDim.x;
     int Row = threadIdx.y + blockIdx.y * blockDim.y;
     int Channel = threadIdx.z;
     if(Col < width && Row < height) {
-        int offset = (Row * width + Col) * RGB_CHANNELS + Channel;
+        int offset = (Row * width + Col) * imageChannels + Channel;
         outputImage[offset] = (float) (ucharImage[offset] / 255.0);
     }
 }
@@ -140,6 +138,12 @@ int main(int argc, char **argv)
     const char *inputImageFile;
 
     //@@ Insert more code here
+    float *deviceInputImage;
+    unsigned char *deviceUcharImage;
+    unsigned char *deviceGrayImage;
+    unsigned char *deviceHisto;
+    float* deviceCDF;
+    float* deviceOutputImage;
 
     args = wbArg_read(argc, argv); /* parse the input arguments */
 
@@ -156,10 +160,42 @@ int main(int argc, char **argv)
     wbTime_stop(Generic, "Importing data and creating memory on host");
 
     //@@ insert code here
+    cudaMalloc((void **)&deviceInputImage, imageWidth * imageHeight * imageChannels * sizeof(float));
+    cudaMalloc((void **)&deviceUcharImage, imageWidth * imageHeight * imageChannels * sizeof(unsigned char));
+    cudaMalloc((void **)&deviceGrayImage, imageWidth * imageHeight * sizeof(unsigned char));
+    cudaMalloc((void **)&deviceHisto, HISTOGRAM_LENGTH * sizeof(unsigned char));
+    cudaMalloc((void **)&deviceCDF, HISTOGRAM_LENGTH * sizeof(float));
+    cudaMalloc((void **)&deviceOutputImage, imageWidth * imageHeight * imageChannels * sizeof(float));
+
+    cudaMemcpy(deviceInputImage, hostInputImageData, imageWidth * imageHeight * imageChannels * sizeof(float),
+                       cudaMemcpyHostToDevice);
+
+    dim3 DimConvertBlock(TILE_WIDTH, TILE_WIDTH, imageChannels);
+    dim3 DimConvertGrid(ceil(((float)imageWidth)/TILE_WIDTH), ceil(((float)imageHeight)/TILE_WIDTH), 1);
+    dim3 DimHistCDFBlock(HISTOGRAM_LENGTH/2, 1, 1);
+    dim3 DimHistCDFGrid(1, 0, 0);
+
+    FloatToUchar<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceInputImage, imageHeight, imageWidth, imageChannels);
+    RGBToGray<<<DimConvertGrid, DimConvertBlock>>>(deviceGrayImage, deviceUcharImage, imageHeight, imageWidth, imageChannels);
+    ImageHisto<<<DimConvertGrid, DimConvertBlock>>>(deviceGrayImage, imageHeight, imageWidth, deviceHisto);
+    HistCDF<<<DimHistCDFGrid, DimHistCDFBlock>>>(deviceCDF, deviceHisto, imageHeight*imageWidth);
+    HistoEqualization<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceCDF, imageHeight, imageWidth, imageChannels);
+    UcharToFloat<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceOutputImage, imageHeight, imageWidth, imageChannels);
+
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(hostOutputImageData, deviceOutputImage, imageWidth * imageHeight * imageChannels * sizeof(float),
+                       cudaMemcpyDeviceToHost)
+
+    cudaFree(deviceInputImage);
+    cudaFree(deviceUcharImage);
+    cudaFree(deviceGrayImage);
+    cudaFree(deviceHisto);
+    cudaFree(deviceCDF);
+    cudaFree(deviceOutputImage);
 
     wbSolution(args, outputImage);
 
     //@@ insert code here
-
     return 0;
 }
