@@ -55,9 +55,48 @@ void ImageHisto(unsigned char* image, int height, int weight, unsigned char* his
         atomicAdd(&(histo[linearIdx]), histo_private[linearIdx]);
 }
 
-__global__
-void HistoCDF(unsigned char* histo){
-    
+__global__ 
+void HistCDF(float *cdf, unsigned char* histo, int imgSize)
+{
+    __shared__ float T[HISTOGRAM_LENGTH];
+
+    unsigned int t = threadIdx.x;
+    unsigned int start = 2 * blockIdx.x * blockDim.x;
+    unsigned int id1 = start + 2 * t;
+    unsigned int id2 = start + 2 * t + 1;
+    int stride = 1;
+    int index;
+
+    // copy histo into shared memory
+    T[2 * t] = histo[id1] / imgSize;
+    T[2 * t + 1] = histo[id2] / imgSize;
+
+    // Reduction Step
+    while (stride < HISTOGRAM_LENGTH)
+    {
+        __syncthreads();
+        index = (t + 1) * stride * 2 - 1;
+        if (index < HISTOGRAM_LENGTH && (index - stride) >= 0)
+            T[index] += T[index - stride];
+        stride = stride * 2;
+    }
+
+    // Post Scan Step
+    stride = HISTOGRAM_LENGTH / 4;
+    while (stride > 0)
+    {
+        __syncthreads();
+        index = (t + 1) * stride * 2 - 1;
+        if ((index + stride) < HISTOGRAM_LENGTH)
+            T[index + stride] += T[index];
+        stride = stride / 2;
+    }
+
+    __syncthreads();
+
+    // copy back to the cdf in global memory
+    cdf[id1] = T[2 * t];
+    cdf[id2] = T[2 * t + 1];
 }
 
 
