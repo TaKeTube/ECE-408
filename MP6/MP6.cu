@@ -33,7 +33,7 @@ void RGBToGray(unsigned char* grayImage, unsigned char* rgbImage, int height, in
 }
 
 __global__ 
-void ImageHisto(unsigned char* ucharImage, int height, int weight, unsigned char* histo){
+void ImageHisto(unsigned char* image, int height, int weight, unsigned char* histo){
     __shared__ unsigned int histo_private[HISTOGRAM_LENGTH];
 
     int linearIdx = threadIdx.x + threadIdx.y * blockDim.x;
@@ -46,7 +46,7 @@ void ImageHisto(unsigned char* ucharImage, int height, int weight, unsigned char
     int Row = threadIdx.y + blockIdx.y * blockDim.y;
     if(Col < width && Row < height) {
         int offset = Row * width + Col;
-        atomicAdd(&(histo_private[ucharImage[offset]]), 1);
+        atomicAdd(&(histo_private[image[offset]]), 1);
     }
 
     __syncthreads();
@@ -113,6 +113,17 @@ void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int we
     if(Col < width && Row < height) {
         int offset = (Row * width + Col) * RGB_CHANNELS + Channel;
         ucharImage[offset] = min(max(255*(cdf[ucharImage[offset]] - cdfmin)/(1.0 - cdfmin), 0.0f), 255.0f);
+    }
+}
+
+__global__ 
+void UcharToFloat(unsigned char* ucharImage, float* outputImage, int height, int weight){
+    int Col = threadIdx.x + blockIdx.x * blockDim.x;
+    int Row = threadIdx.y + blockIdx.y * blockDim.y;
+    int Channel = threadIdx.z;
+    if(Col < width && Row < height) {
+        int offset = (Row * width + Col) * RGB_CHANNELS + Channel;
+        outputImage[offset] = (float) (ucharImage[offset] / 255.0);
     }
 }
 
