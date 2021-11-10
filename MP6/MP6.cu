@@ -27,12 +27,12 @@ void RGBToGray(unsigned char* grayImage, unsigned char* rgbImage, int height, in
         unsigned char r = rgbImage[rgbOffset];
         unsigned char g = rgbImage[rgbOffset + 1];
         unsigned char b = rgbImage[rgbOffset + 2];
-        grayImage[grayOffset] = (unsigned char) (0.21f*r + 0.71f*g + 0.07f*b)
+        grayImage[grayOffset] = (unsigned char) (0.21f*r + 0.71f*g + 0.07f*b);
     }
 }
 
 __global__ 
-void ImageHisto(unsigned char* image, int height, int width, unsigned char* histo){
+void ImageHisto(unsigned char* image, int height, int width, unsigned int* histo){
     __shared__ unsigned int histo_private[HISTOGRAM_LENGTH];
 
     int linearIdx = threadIdx.x + threadIdx.y * blockDim.x;
@@ -55,7 +55,7 @@ void ImageHisto(unsigned char* image, int height, int width, unsigned char* hist
 }
 
 __global__ 
-void HistCDF(float *cdf, unsigned char* histo, int imgSize){
+void HistCDF(float *cdf, unsigned int* histo, int imgSize){
     __shared__ float T[HISTOGRAM_LENGTH];
 
     unsigned int t = threadIdx.x;
@@ -66,8 +66,8 @@ void HistCDF(float *cdf, unsigned char* histo, int imgSize){
     int index;
 
     // copy histo into shared memory
-    T[2 * t] = histo[id1] / imgSize;
-    T[2 * t + 1] = histo[id2] / imgSize;
+    T[2 * t] = (float) histo[id1] / imgSize;
+    T[2 * t + 1] = (float) histo[id2] / imgSize;
 
     // Reduction Step
     while (stride < HISTOGRAM_LENGTH)
@@ -141,7 +141,7 @@ int main(int argc, char **argv)
     float *deviceInputImage;
     unsigned char *deviceUcharImage;
     unsigned char *deviceGrayImage;
-    unsigned char *deviceHisto;
+    unsigned int *deviceHisto;
     float* deviceCDF;
     float* deviceOutputImage;
 
@@ -163,7 +163,7 @@ int main(int argc, char **argv)
     cudaMalloc((void **)&deviceInputImage, imageWidth * imageHeight * imageChannels * sizeof(float));
     cudaMalloc((void **)&deviceUcharImage, imageWidth * imageHeight * imageChannels * sizeof(unsigned char));
     cudaMalloc((void **)&deviceGrayImage, imageWidth * imageHeight * sizeof(unsigned char));
-    cudaMalloc((void **)&deviceHisto, HISTOGRAM_LENGTH * sizeof(unsigned char));
+    cudaMalloc((void **)&deviceHisto, HISTOGRAM_LENGTH * sizeof(unsigned int));
     cudaMalloc((void **)&deviceCDF, HISTOGRAM_LENGTH * sizeof(float));
     cudaMalloc((void **)&deviceOutputImage, imageWidth * imageHeight * imageChannels * sizeof(float));
 
@@ -185,7 +185,7 @@ int main(int argc, char **argv)
     cudaDeviceSynchronize();
 
     cudaMemcpy(hostOutputImageData, deviceOutputImage, imageWidth * imageHeight * imageChannels * sizeof(float),
-                       cudaMemcpyDeviceToHost)
+                       cudaMemcpyDeviceToHost);
 
     cudaFree(deviceInputImage);
     cudaFree(deviceUcharImage);
