@@ -3,7 +3,7 @@
 #include <wb.h>
 
 #define HISTOGRAM_LENGTH    256
-#define TILE_WIDTH          32
+#define TILE_WIDTH          16
 
 //@@ insert code here
 __global__ 
@@ -101,7 +101,7 @@ __global__
 void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int width, int imageChannels){
     __shared__ float cdfmin;
 
-    if(threadIdx.x == 0 && threadIdx.y == 0)
+    if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
         cdfmin = cdf[0];
 
     int Col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -110,7 +110,7 @@ void HistoEqualization(unsigned char* ucharImage, float* cdf, int height, int wi
 
     if(Col < width && Row < height) {
         int offset = (Row * width + Col) * imageChannels + Channel;
-        ucharImage[offset] = min(max(255*(cdf[ucharImage[offset]] - cdfmin)/(1.0 - cdfmin), 0.0f), 255.0f);
+        ucharImage[offset] = min(max(255*(cdf[ucharImage[offset]] - cdfmin)/(1.0f - cdfmin), 0.0f), 255.0f);
     }
 }
 
@@ -121,7 +121,7 @@ void UcharToFloat(unsigned char* ucharImage, float* outputImage, int height, int
     int Channel = threadIdx.z;
     if(Col < width && Row < height) {
         int offset = (Row * width + Col) * imageChannels + Channel;
-        outputImage[offset] = (float) (ucharImage[offset] / 255.0);
+        outputImage[offset] = ((float) ucharImage[offset]) / 255.0f;
     }
 }
 
@@ -171,13 +171,14 @@ int main(int argc, char **argv)
                        cudaMemcpyHostToDevice);
 
     dim3 DimConvertBlock(TILE_WIDTH, TILE_WIDTH, imageChannels);
+    dim3 DimConvertGrayBlock(TILE_WIDTH, TILE_WIDTH, 1);
     dim3 DimConvertGrid(ceil(((float)imageWidth)/TILE_WIDTH), ceil(((float)imageHeight)/TILE_WIDTH), 1);
     dim3 DimHistCDFBlock(HISTOGRAM_LENGTH/2, 1, 1);
-    dim3 DimHistCDFGrid(1, 0, 0);
+    dim3 DimHistCDFGrid(1, 1, 1);
 
     FloatToUchar<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceInputImage, imageHeight, imageWidth, imageChannels);
     RGBToGray<<<DimConvertGrid, DimConvertBlock>>>(deviceGrayImage, deviceUcharImage, imageHeight, imageWidth, imageChannels);
-    ImageHisto<<<DimConvertGrid, DimConvertBlock>>>(deviceGrayImage, imageHeight, imageWidth, deviceHisto);
+    ImageHisto<<<DimConvertGrid, DimConvertGrayBlock>>>(deviceGrayImage, imageHeight, imageWidth, deviceHisto);
     HistCDF<<<DimHistCDFGrid, DimHistCDFBlock>>>(deviceCDF, deviceHisto, imageHeight*imageWidth);
     HistoEqualization<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceCDF, imageHeight, imageWidth, imageChannels);
     UcharToFloat<<<DimConvertGrid, DimConvertBlock>>>(deviceUcharImage, deviceOutputImage, imageHeight, imageWidth, imageChannels);
