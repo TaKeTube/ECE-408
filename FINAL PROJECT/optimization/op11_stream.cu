@@ -59,62 +59,61 @@ __global__ void conv_forward_kernel(float *y, const float *x, const float *k, co
 }
 
 
-__host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
+__host__ void GPUInterface::conv_forward_gpu_prolog(float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
 {
+#define STREAM_NUM 8
+
     // Allocate memory and copy over the relevant data structures to the GPU
     const int H_out = H - K + 1;
     const int W_out = W - K + 1;
+    int x_batch_size = (B * C * H * W) / STREAM_NUM;
+    int y_batch_size = (B * M * H_out * W_out) / STREAM_NUM;
 
-    cudaMalloc((void**)device_y_ptr, B * M * H_out * W_out * sizeof(float));
-    cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
-    cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
-
-    cudaMemcpy(*device_y_ptr, host_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice);
-
-    // We pass double pointers for you to initialize the relevant device pointers,
-    //  which are passed to the other two functions.
-
-    // Useful snippet for error checking
-    // cudaError_t error = cudaGetLastError();
-    // if(error != cudaSuccess)
-    // {
-    //     std::cout<<"CUDA error: "<<cudaGetErrorString(error)<<std::endl;
-    //     exit(-1);
-    // }
-
-}
-
-
-__host__ void GPUInterface::conv_forward_gpu(float *device_y, const float *device_x, const float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
-{
-    // Set the kernel dimensions and call the kernel
-    const int H_out = H - K + 1;
-    const int W_out = W - K + 1;
     int W_grid = (W_out + TILE_WIDTH - 1) / TILE_WIDTH;
     int H_grid = (H_out + TILE_WIDTH - 1) / TILE_WIDTH;
     int Y = W_grid * H_grid;
 
     dim3 blockDim(TILE_WIDTH, TILE_WIDTH, 1);
     dim3 gridDim(M, Y, B);
-    conv_forward_kernel<<<gridDim, blockDim>>>(device_y, device_x, device_k, B, M, C, H, W, K);
+
+    cudaMalloc((void**)device_y_ptr, B * M * H_out * W_out * sizeof(float));
+    cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
+    cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
+
+    cudaStream_t stream[STREAM_NUM];
+    for (int i = 0; i < STREAM_NUM; i++)
+        cudaStreamCreate(&stream[i]);
+
+    cudaMemcpyAsync(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice, stream[0]);
+    for (int i = 0; i < STREAM_NUM; i++){
+        int x_offset = x_batch_size * i;
+        int y_offset = y_batch_size * i;
+        cudaMemcpyAsync((*device_x_ptr) + x_offset, host_x + x_offset, x_batch_size * sizeof(float), cudaMemcpyHostToDevice, stream[i]);
+        conv_forward_kernel<<<gridDim, blockDim, 0, stream[i]>>>((*device_y_ptr) + y_offset, (*device_x_ptr) + x_offset, *device_k_ptr, B, M, C, H, W, K);
+        cudaMemcpyAsync(host_y + y_offset, (*device_y_ptr) + y_offset, y_batch_size * sizeof(float), cudaMemcpyDeviceToHost, stream[i]);
+    }
     cudaDeviceSynchronize();
+
+    for (int i = 0; i < STREAM_NUM; i++)
+        cudaStreamDestroy(stream[i]);
+
+    // Free device memory
+    cudaFree(device_x_ptr);
+    cudaFree(device_y_ptr);
+    cudaFree(device_k_ptr);
+
+#undef STREAM_NUM
 }
 
+__host__ void GPUInterface::conv_forward_gpu(float *device_y, const float *device_x, const float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
+{
+    return;
+}
 
 __host__ void GPUInterface::conv_forward_gpu_epilog(float *host_y, float *device_y, float *device_x, float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
-    // Copy the output back to host
-    const int H_out = H - K + 1;
-    const int W_out = W - K + 1;
-    cudaMemcpy(host_y, device_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyDeviceToHost);
-    // Free device memory
-    cudaFree(device_y);
-    cudaFree(device_x);
-    cudaFree(device_k);
+    return;
 }
-
 
 __host__ void GPUInterface::get_device_properties()
 {
