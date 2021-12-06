@@ -69,7 +69,6 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const f
     cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
     cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
 
-    cudaMemcpy(*device_y_ptr, host_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice);
 

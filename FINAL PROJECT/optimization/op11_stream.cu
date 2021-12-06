@@ -2,7 +2,7 @@
 #include <iostream>
 #include "gpu-new-forward.h"
 
-#define TILE_WIDTH 8
+#define TILE_WIDTH 16
 
 __global__ void conv_forward_kernel(float *y, const float *x, const float *k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
@@ -59,13 +59,14 @@ __global__ void conv_forward_kernel(float *y, const float *x, const float *k, co
 }
 
 
-__host__ void GPUInterface::conv_forward_gpu_prolog(float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
+__host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
 {
-#define STREAM_NUM 8
+#define STREAM_NUM 10
 
     // Allocate memory and copy over the relevant data structures to the GPU
     const int H_out = H - K + 1;
     const int W_out = W - K + 1;
+    float* host_y_temp = (float*)host_y;
     int x_batch_size = (B * C * H * W) / STREAM_NUM;
     int y_batch_size = (B * M * H_out * W_out) / STREAM_NUM;
 
@@ -74,7 +75,7 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(float *host_y, const float *
     int Y = W_grid * H_grid;
 
     dim3 blockDim(TILE_WIDTH, TILE_WIDTH, 1);
-    dim3 gridDim(M, Y, B);
+    dim3 gridDim(M, Y, B/STREAM_NUM);
 
     cudaMalloc((void**)device_y_ptr, B * M * H_out * W_out * sizeof(float));
     cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
@@ -90,7 +91,7 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(float *host_y, const float *
         int y_offset = y_batch_size * i;
         cudaMemcpyAsync((*device_x_ptr) + x_offset, host_x + x_offset, x_batch_size * sizeof(float), cudaMemcpyHostToDevice, stream[i]);
         conv_forward_kernel<<<gridDim, blockDim, 0, stream[i]>>>((*device_y_ptr) + y_offset, (*device_x_ptr) + x_offset, *device_k_ptr, B, M, C, H, W, K);
-        cudaMemcpyAsync(host_y + y_offset, (*device_y_ptr) + y_offset, y_batch_size * sizeof(float), cudaMemcpyDeviceToHost, stream[i]);
+        cudaMemcpyAsync(host_y_temp + y_offset, (*device_y_ptr) + y_offset, y_batch_size * sizeof(float), cudaMemcpyDeviceToHost, stream[i]);
     }
     cudaDeviceSynchronize();
 

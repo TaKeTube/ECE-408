@@ -2,7 +2,7 @@
 #include <iostream>
 #include "gpu-new-forward.h"
 
-#define TILE_WIDTH 8
+#define TILE_WIDTH 16
 
 __constant__ float const_k[15000];
 
@@ -70,7 +70,6 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const f
     cudaMalloc((void**)device_y_ptr, B * M * H_out * W_out * sizeof(float));
     cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
 
-    cudaMemcpy(*device_y_ptr, host_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpyToSymbol(const_k, host_k, M * C * K * K * sizeof(float));
 

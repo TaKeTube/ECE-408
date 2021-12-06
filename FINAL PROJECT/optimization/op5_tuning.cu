@@ -2,9 +2,9 @@
 #include <iostream>
 #include "gpu-new-forward.h"
 
-#define TILE_WIDTH 8
+#define TILE_WIDTH 16
 
-__global__ void conv_forward_kernel(float *y, const float *x, const float *k, const int B, const int M, const int C, const int H, const int W, const int K)
+__global__ void conv_forward_kernel(float* __restrict__ y, const float* __restrict__ x, const float* __restrict__ k, const int B, const int M, const int C, const int H, const int W, const int K)
 {
     /*
     Modify this function to implement the forward pass described in Chapter 16.
@@ -46,61 +46,61 @@ __global__ void conv_forward_kernel(float *y, const float *x, const float *k, co
     float acc = 0.0f;
     if((h < H_out) && (w < W_out)){
         for(int c = 0; c < C; c++){
-            acc += x4d(b,c,h+0,w+0) * k4d(m,c,0,0)
-                +  x4d(b,c,h+0,w+1) * k4d(m,c,0,1)
-                +  x4d(b,c,h+0,w+2) * k4d(m,c,0,2)
-                +  x4d(b,c,h+0,w+3) * k4d(m,c,0,3)
-                +  x4d(b,c,h+0,w+4) * k4d(m,c,0,4)
-                +  x4d(b,c,h+0,w+5) * k4d(m,c,0,5)
-                +  x4d(b,c,h+0,w+6) * k4d(m,c,0,6)
+            acc += x4d(b,c,h+0,w+0) * k4d(m,c,0,0);
+            acc += x4d(b,c,h+0,w+1) * k4d(m,c,0,1);
+            acc += x4d(b,c,h+0,w+2) * k4d(m,c,0,2);
+            acc += x4d(b,c,h+0,w+3) * k4d(m,c,0,3);
+            acc += x4d(b,c,h+0,w+4) * k4d(m,c,0,4);
+            acc += x4d(b,c,h+0,w+5) * k4d(m,c,0,5);
+            acc += x4d(b,c,h+0,w+6) * k4d(m,c,0,6);
 
-                +  x4d(b,c,h+1,w+0) * k4d(m,c,1,0)
-                +  x4d(b,c,h+1,w+1) * k4d(m,c,1,1)
-                +  x4d(b,c,h+1,w+2) * k4d(m,c,1,2)
-                +  x4d(b,c,h+1,w+3) * k4d(m,c,1,3)
-                +  x4d(b,c,h+1,w+4) * k4d(m,c,1,4)
-                +  x4d(b,c,h+1,w+5) * k4d(m,c,1,5)
-                +  x4d(b,c,h+1,w+6) * k4d(m,c,1,6)
+            acc += x4d(b,c,h+1,w+0) * k4d(m,c,1,0);
+            acc += x4d(b,c,h+1,w+1) * k4d(m,c,1,1);
+            acc += x4d(b,c,h+1,w+2) * k4d(m,c,1,2);
+            acc += x4d(b,c,h+1,w+3) * k4d(m,c,1,3);
+            acc += x4d(b,c,h+1,w+4) * k4d(m,c,1,4);
+            acc += x4d(b,c,h+1,w+5) * k4d(m,c,1,5);
+            acc += x4d(b,c,h+1,w+6) * k4d(m,c,1,6);
 
-                +  x4d(b,c,h+2,w+0) * k4d(m,c,2,0)
-                +  x4d(b,c,h+2,w+1) * k4d(m,c,2,1)
-                +  x4d(b,c,h+2,w+2) * k4d(m,c,2,2)
-                +  x4d(b,c,h+2,w+3) * k4d(m,c,2,3)
-                +  x4d(b,c,h+2,w+4) * k4d(m,c,2,4)
-                +  x4d(b,c,h+2,w+5) * k4d(m,c,2,5)
-                +  x4d(b,c,h+2,w+6) * k4d(m,c,2,6)    
-                
-                +  x4d(b,c,h+3,w+0) * k4d(m,c,3,0)
-                +  x4d(b,c,h+3,w+1) * k4d(m,c,3,1)
-                +  x4d(b,c,h+3,w+2) * k4d(m,c,3,2)
-                +  x4d(b,c,h+3,w+3) * k4d(m,c,3,3)
-                +  x4d(b,c,h+3,w+4) * k4d(m,c,3,4)
-                +  x4d(b,c,h+3,w+5) * k4d(m,c,3,5)
-                +  x4d(b,c,h+3,w+6) * k4d(m,c,3,6) 
+            acc += x4d(b,c,h+2,w+0) * k4d(m,c,2,0);
+            acc += x4d(b,c,h+2,w+1) * k4d(m,c,2,1);
+            acc += x4d(b,c,h+2,w+2) * k4d(m,c,2,2);
+            acc += x4d(b,c,h+2,w+3) * k4d(m,c,2,3);
+            acc += x4d(b,c,h+2,w+4) * k4d(m,c,2,4);
+            acc += x4d(b,c,h+2,w+5) * k4d(m,c,2,5);
+            acc += x4d(b,c,h+2,w+6) * k4d(m,c,2,6);  
 
-                +  x4d(b,c,h+4,w+0) * k4d(m,c,4,0)
-                +  x4d(b,c,h+4,w+1) * k4d(m,c,4,1)
-                +  x4d(b,c,h+4,w+2) * k4d(m,c,4,2)
-                +  x4d(b,c,h+4,w+3) * k4d(m,c,4,3)
-                +  x4d(b,c,h+4,w+4) * k4d(m,c,4,4)
-                +  x4d(b,c,h+4,w+5) * k4d(m,c,4,5)
-                +  x4d(b,c,h+4,w+6) * k4d(m,c,4,6) 
+            acc += x4d(b,c,h+3,w+0) * k4d(m,c,3,0);
+            acc += x4d(b,c,h+3,w+1) * k4d(m,c,3,1);
+            acc += x4d(b,c,h+3,w+2) * k4d(m,c,3,2);
+            acc += x4d(b,c,h+3,w+3) * k4d(m,c,3,3);
+            acc += x4d(b,c,h+3,w+4) * k4d(m,c,3,4);
+            acc += x4d(b,c,h+3,w+5) * k4d(m,c,3,5);
+            acc += x4d(b,c,h+3,w+6) * k4d(m,c,3,6);
 
-                +  x4d(b,c,h+5,w+0) * k4d(m,c,5,0)
-                +  x4d(b,c,h+5,w+1) * k4d(m,c,5,1)
-                +  x4d(b,c,h+5,w+2) * k4d(m,c,5,2)
-                +  x4d(b,c,h+5,w+3) * k4d(m,c,5,3)
-                +  x4d(b,c,h+5,w+4) * k4d(m,c,5,4)
-                +  x4d(b,c,h+5,w+5) * k4d(m,c,5,5)
-                +  x4d(b,c,h+5,w+6) * k4d(m,c,5,6) 
+            acc += x4d(b,c,h+4,w+0) * k4d(m,c,4,0);
+            acc += x4d(b,c,h+4,w+1) * k4d(m,c,4,1);
+            acc += x4d(b,c,h+4,w+2) * k4d(m,c,4,2);
+            acc += x4d(b,c,h+4,w+3) * k4d(m,c,4,3);
+            acc += x4d(b,c,h+4,w+4) * k4d(m,c,4,4);
+            acc += x4d(b,c,h+4,w+5) * k4d(m,c,4,5);
+            acc += x4d(b,c,h+4,w+6) * k4d(m,c,4,6);
 
-                +  x4d(b,c,h+6,w+0) * k4d(m,c,6,0)
-                +  x4d(b,c,h+6,w+1) * k4d(m,c,6,1)
-                +  x4d(b,c,h+6,w+2) * k4d(m,c,6,2)
-                +  x4d(b,c,h+6,w+3) * k4d(m,c,6,3)
-                +  x4d(b,c,h+6,w+4) * k4d(m,c,6,4)
-                +  x4d(b,c,h+6,w+5) * k4d(m,c,6,5)
-                +  x4d(b,c,h+6,w+6) * k4d(m,c,6,6);
+            acc += x4d(b,c,h+5,w+0) * k4d(m,c,5,0);
+            acc += x4d(b,c,h+5,w+1) * k4d(m,c,5,1);
+            acc += x4d(b,c,h+5,w+2) * k4d(m,c,5,2);
+            acc += x4d(b,c,h+5,w+3) * k4d(m,c,5,3);
+            acc += x4d(b,c,h+5,w+4) * k4d(m,c,5,4);
+            acc += x4d(b,c,h+5,w+5) * k4d(m,c,5,5);
+            acc += x4d(b,c,h+5,w+6) * k4d(m,c,5,6);
+
+            acc += x4d(b,c,h+6,w+0) * k4d(m,c,6,0);
+            acc += x4d(b,c,h+6,w+1) * k4d(m,c,6,1);
+            acc += x4d(b,c,h+6,w+2) * k4d(m,c,6,2);
+            acc += x4d(b,c,h+6,w+3) * k4d(m,c,6,3);
+            acc += x4d(b,c,h+6,w+4) * k4d(m,c,6,4);
+            acc += x4d(b,c,h+6,w+5) * k4d(m,c,6,5);
+            acc += x4d(b,c,h+6,w+6) * k4d(m,c,6,6);
         }
         y4d(b, m, h, w) = acc;
     }
@@ -121,7 +121,61 @@ __host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const f
     cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
     cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
 
-    cudaMemcpy(*device_y_ptr, host_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice);
+
+    // We pass double pointers for you to initialize the relevant device pointers,
+    //  which are passed to the other two functions.
+
+    // Useful snippet for error checking
+    // cudaError_t error = cudaGetLastError();
+    // if(error != cudaSuccess)
+    // {
+    //     std::cout<<"CUDA error: "<<cudaGetErrorString(error)<<std::endl;
+    //     exit(-1);
+    // }
+}
+
+
+__host__ void GPUInterface::conv_forward_gpu(float *device_y, const float *device_x, const float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
+{
+    // Set the kernel dimensions and call the kernel
+    const int H_out = H - K + 1;
+    const int W_out = W - K + 1;
+    int W_grid = (W_out + TILE_WIDTH - 1) / TILE_WIDTH;
+    int H_grid = (H_out + TILE_WIDTH - 1) / TILE_WIDTH;
+    int Y = W_grid * H_grid;
+
+    dim3 blockDim(TILE_WIDTH, TILE_WIDTH, 1);
+    dim3 gridDim(M, Y, B);
+    conv_forward_kernel<<<gridDim, blockDim>>>(device_y, device_x, device_k, B, M, C, H, W, K);
+    cudaDeviceSynchronize();
+}
+
+
+__host__ void GPUInterface::conv_forward_gpu_epilog(float *host_y, float *device_y, float *device_x, float *device_k, const int B, const int M, const int C, const int H, const int W, const int K)
+{
+    // Copy the output back to host
+    const int H_out = H - K + 1;
+    const int W_out = W - K + 1;
+    cudaMemcpy(host_y, device_y, B * M * H_out * W_out * sizeof(float), cudaMemcpyDeviceToHost);
+    // Free device memory
+    cudaFree(device_y);
+    cudaFree(device_x);
+    cudaFree(device_k);
+}
+
+
+__host__ void GPUInterface::conv_forward_gpu_prolog(const float *host_y, const float *host_x, const float *host_k, float **device_y_ptr, float **device_x_ptr, float **device_k_ptr, const int B, const int M, const int C, const int H, const int W, const int K)
+{
+    // Allocate memory and copy over the relevant data structures to the GPU
+    const int H_out = H - K + 1;
+    const int W_out = W - K + 1;
+
+    cudaMalloc((void**)device_y_ptr, B * M * H_out * W_out * sizeof(float));
+    cudaMalloc((void**)device_x_ptr, B * C * H * W * sizeof(float));
+    cudaMalloc((void**)device_k_ptr, M * C * K * K * sizeof(float));
+
     cudaMemcpy(*device_x_ptr, host_x, B * C * H * W * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(*device_k_ptr, host_k, M * C * K * K * sizeof(float), cudaMemcpyHostToDevice);
 
