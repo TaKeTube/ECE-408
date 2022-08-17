@@ -1,3 +1,24 @@
+## CUDA-Optimized Forward Propagation Convolutional Layer
+
+#### Overview
+
+This is the final project for the Fall 2021 [ECE408 / CS483 / CSE408](https://ece.illinois.edu/academics/courses/ece408) @ UIUC.
+
+In this project, students are required to implement and optimize the forward-pass of a convolutional layer using CUDA.
+
+This is an individual project.
+
+#### Optimizations
+
+- Tiled shared memory convolution
+- Weight matrix (kernel values) in constant memory
+- Tuning with restrict and loop unrolling
+- Using Streams to overlap computation with data transfer
+
+Below is the original introduction of this project.
+
+---
+
 # ECE408/CS483 Final Project
 
 ## Introduction
@@ -187,7 +208,7 @@ Note: Due to the limited capacity of our RAI servers, in order to ensure RAI job
 You will use `gprof` to profile the execution of your CPU forward convolution implementation.
 
 We compile and link your `cpu-new-forward.cc` with the `-pg` flag, which creates a `gmon.out` artifact containing profile information when the binary `m1` is executed.  To analyze this information in human readable form, modify `rai_build.yml` and add the line
- 
+
     - /bin/bash -c "gprof -Q m1 gmon.out"
 
 By default, `gprof` prints both a flat profile and a call graph (see "Interpreting gprof's Output" in the [GNU gprof Documentation](https://sourceware.org/binutils/docs/gprof/index.html)).  With the `-Q` flag, we only print the flat profile.  The information you need can be found near the beginning of `gprof`'s output, so you can pipe the output to `grep` (with your function's name) or `head`.
@@ -383,7 +404,7 @@ For this milestone, edit the responses in the given `m3_report_template.docx` fi
 Use 
     
     rai -p <project folder> --queue rai_amd64_ece408 --submit=m3
-    
+
 to submit your project folder. Make sure to include your `report.pdf` in your `<project folder>`. Make sure you answer all items listed above for this milestone, and include your name, NetID, and class section.
 
 ## Rubric
